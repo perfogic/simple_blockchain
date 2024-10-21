@@ -1,27 +1,21 @@
 import { sha256 } from "@ethersproject/crypto";
+import ProofOfWork from "./proofofwork";
 
 class Block {
   public timestamp: number;
   public data: string;
   public prevBlockHash: string;
   public hash: string;
+  public nonce: bigint;
 
   constructor(data: string, prevBlockHash: string) {
     this.timestamp = Math.floor(new Date().getTime() / 1000);
     this.data = data;
     this.prevBlockHash = prevBlockHash;
-    this.hash = this.calculateHash();
-  }
-
-  calculateHash(): string {
-    const timestampStr = this.timestamp.toString();
-    const headers = Buffer.concat([
-      Buffer.from(this.prevBlockHash),
-      Buffer.from(this.data),
-      Buffer.from(timestampStr),
-    ]);
-    const hash = sha256(headers);
-    return hash;
+    let pow = new ProofOfWork(this);
+    const { hash, nonce } = pow.run();
+    this.hash = hash;
+    this.nonce = nonce;
   }
 
   static createGenesisBlock(): Block {
