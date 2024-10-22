@@ -34,17 +34,15 @@ class ProofOfWork {
   // Run the proof-of-work algorithm
   run(): { nonce: bigint; hash: string } {
     let nonce = 0n;
-    let hashInt = 0n;
-    let hash: string;
 
     console.info(
       `Mining the block containing "${Buffer.from(this.block.data).toString()}"`
     );
     while (nonce < maxNonce) {
       const data = this.prepareData(nonce);
-      hash = sha256(data);
+      let hash = sha256(data);
       process.stdout.write(`\rRetry with hash: ${hash}`);
-      hashInt = BigInt(`${hash}`);
+      let hashInt = BigInt(`${hash}`);
       if (hashInt < this.target) {
         console.info("Block mined successfully!");
         return { nonce, hash };
