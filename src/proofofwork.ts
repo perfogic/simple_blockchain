@@ -17,7 +17,7 @@ class ProofOfWork {
   private prepareData(nonce: bigint): Uint8Array {
     const components = [
       this.block.prevBlockHash,
-      this.block.data,
+      this.block.hashTransactions(),
       this.block.timestamp.toString(16),
       targetBits.toString(16),
       nonce.toString(16),
@@ -35,13 +35,11 @@ class ProofOfWork {
   run(): { nonce: bigint; hash: string } {
     let nonce = 0n;
 
-    console.info(
-      `Mining the block containing "${Buffer.from(this.block.data).toString()}"`
-    );
+    console.info(`Mining a new block"`);
     while (nonce < maxNonce) {
       const data = this.prepareData(nonce);
       let hash = sha256(data);
-      process.stdout.write(`\rRetry with hash: ${hash}`);
+      process.stdout.write(`\rHash: ${hash}`);
       let hashInt = BigInt(`${hash}`);
       if (hashInt < this.target) {
         console.info("Block mined successfully!");
