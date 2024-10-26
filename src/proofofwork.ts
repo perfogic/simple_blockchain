@@ -42,7 +42,7 @@ class ProofOfWork {
       process.stdout.write(`\rHash: ${hash}`);
       let hashInt = BigInt(`${hash}`);
       if (hashInt < this.target) {
-        console.info("Block mined successfully!");
+        console.info("\nBlock mined successfully!");
         return { nonce, hash };
       }
       nonce++;

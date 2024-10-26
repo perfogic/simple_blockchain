@@ -1,11 +1,6 @@
 import { sha256 } from "@ethersproject/crypto";
 import ProofOfWork from "./proofofwork";
 import { Transaction } from "./transaction";
-import {
-  classToPlain,
-  instanceToPlain,
-  plainToInstance,
-} from "class-transformer";
 
 class Block {
   public timestamp: number;
@@ -24,10 +19,6 @@ class Block {
     this.nonce = nonce;
   }
 
-  serialize(): string {
-    return JSON.stringify(instanceToPlain(this));
-  }
-
   hashTransactions(): string {
     const txIds = this.transactions.map((tx) => tx.txid);
     const txs = txIds.join("");
@@ -36,11 +27,6 @@ class Block {
 
   static createGenesisBlock(coinbase: Transaction): Block {
     return new Block([coinbase], "");
-  }
-
-  static deserialize(data: string): Block {
-    const plain = JSON.parse(data);
-    return plainToInstance(Block, plain as Object);
   }
 }
 

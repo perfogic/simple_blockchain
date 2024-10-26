@@ -1,3 +1,4 @@
+import { instanceToPlain } from "class-transformer";
 import Block from "./block";
 import {
   isCoinbase,
@@ -15,56 +16,65 @@ interface KeyValueDB {
 
 interface UnspentTransaction {
   tx: Transaction;
-  vout: TxOutput;
+  vout: number;
 }
 
 class Blockchain {
   public blocks: Block[];
-  public blocksDb: KeyValueDB;
+  public blocksDb: { [key: string]: number };
   public tipHash: string;
 
-  constructor() {
+  constructor(validatorAddress: string) {
     const genesisBlock = Block.createGenesisBlock(
-      newCoinbaseTx("", genesisCoinbaseData)
+      newCoinbaseTx(validatorAddress, genesisCoinbaseData)
     );
     this.blocks = [genesisBlock];
-    this.blocksDb = {};
+    this.blocksDb = {
+      [genesisBlock.hash]: 0,
+    };
     this.tipHash = genesisBlock.hash;
   }
 
-  addBlock(transactions: Transaction[]): void {
+  mineBlock(transactions: Transaction[]): void {
     const prevBlock = this.blocks[this.blocks.length - 1];
     const newBlock = new Block(transactions, prevBlock.hash);
+    let currentIndex = this.blocks.length;
     this.blocks.push(newBlock);
     this.tipHash = newBlock.hash;
-    this.blocksDb[newBlock.hash] = newBlock.serialize();
+    this.blocksDb = {
+      ...this.blocksDb,
+      [newBlock.hash]: currentIndex,
+    };
   }
 
   findUnspentTransactions(address: string): UnspentTransaction[] {
-    let unspentTxs: UnspentTransaction[] = [];
     let spentTxos = {} as { [key: string]: boolean };
+    let unspentTxs: UnspentTransaction[] = [];
 
     let currentHash = this.tipHash;
     while (true) {
-      let block = Block.deserialize(this.blocksDb[currentHash]);
+      let block = this.blocks[this.blocksDb[currentHash]];
       for (const tx of block.transactions) {
-        let vouts = tx.vouts;
-        for (const vout of vouts) {
-          if (spentTxos[`${tx.txid} - ${vout}`] === undefined) {
-            if (vout.canBeUnlockedWith(address)) {
-              unspentTxs.push({
-                tx,
-                vout,
-              });
+        // Loop through vins to detect spent txos
+        if (!isCoinbase(tx)) {
+          for (const txVin of tx.txVins) {
+            if (txVin.canUnlockOutputWith(address)) {
+              const inTxID = txVin.txid;
+              const vout = txVin.vout;
+              spentTxos[`${inTxID}-${vout}`] = true;
             }
           }
         }
 
-        if (!isCoinbase(tx)) {
-          for (const vin of tx.vins) {
-            if (vin.canUnlockOutputWith(address)) {
-              const inTxID = vin.txid;
-              spentTxos[`${inTxID} - ${vin.vout}`] = true;
+        // Let's find unspent txos
+        let txVouts = tx.txVouts;
+        for (let i = 0; i < txVouts.length; i++) {
+          if (spentTxos[`${tx.txid}-${i}`] === undefined) {
+            if (txVouts[i].canBeUnlockedWith(address)) {
+              unspentTxs.push({
+                tx,
+                vout: i,
+              });
             }
           }
         }
@@ -81,10 +91,49 @@ class Blockchain {
   findUTXO(address: string): TxOutput[] {
     let utxos = [] as TxOutput[];
     let unspentTxs = this.findUnspentTransactions(address);
-    for (const tx of unspentTxs) {
-      utxos.push(tx.vout);
+    for (const unspentTx of unspentTxs) {
+      let transaction = unspentTx.tx;
+      let txVouts = transaction.txVouts;
+      let vout = unspentTx.vout;
+      utxos.push(txVouts[vout]);
     }
     return utxos;
+  }
+
+  findSpendableOutputs(
+    address: string,
+    amount: number
+  ): { totalAccumulate: number; unspentOutputs: { [key: string]: number[] } } {
+    let unspentOutputs: { [key: string]: number[] } = {};
+    let unspentTxs = this.findUnspentTransactions(address);
+    let totalAccumulate = 0;
+    for (const unspentTx of unspentTxs) {
+      let transaction = unspentTx.tx;
+      let txid = transaction.txid;
+      if (unspentOutputs[txid] === undefined) {
+        unspentOutputs[txid] = [];
+      }
+
+      let txVouts = transaction.txVouts;
+      let vout = unspentTx.vout;
+      let txVout = txVouts[vout];
+      totalAccumulate += txVout.value;
+      unspentOutputs[txid].push(vout);
+
+      if (totalAccumulate >= amount) {
+        break;
+      }
+    }
+    return { totalAccumulate, unspentOutputs };
+  }
+
+  viewExplorer(): void {
+    let i = 0;
+    for (const block of this.blocks) {
+      console.log(`Block with height ${i}:`);
+      console.dir(instanceToPlain(block), { depth: null });
+      i++;
+    }
   }
 }
 

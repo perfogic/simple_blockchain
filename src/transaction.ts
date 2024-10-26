@@ -1,3 +1,4 @@
+import { sha256 } from "@ethersproject/crypto";
 import Blockchain from "./blockchain";
 
 export class TxInput {
@@ -32,8 +33,8 @@ export class TxOutput {
 
 export interface Transaction {
   txid: string;
-  vins: TxInput[];
-  vouts: TxOutput[];
+  txVins: TxInput[];
+  txVouts: TxOutput[];
 }
 
 export function newCoinbaseTx(to: string, data: string): Transaction {
@@ -41,51 +42,49 @@ export function newCoinbaseTx(to: string, data: string): Transaction {
   const txout = new TxOutput(50_00_000_000, to);
   return {
     txid: "",
-    vins: [txin],
-    vouts: [txout],
+    txVins: [txin],
+    txVouts: [txout],
   };
 }
 
 export function isCoinbase(tx: Transaction) {
-  return tx.vins.length == 1 && tx.vins[0].txid == "" && tx.vins[0].vout == -1;
+  return (
+    tx.txVins.length == 1 && tx.txVins[0].txid == "" && tx.txVins[0].vout == -1
+  );
 }
 
-// export function newUTXOTransaction(
-//   from: string,
-//   to: string,
-//   amount: number,
-//   bc: Blockchain
-// ): Transaction {
-//   let inputs: TxInput[] = [];
-//   let outputs: TxOutput[] = [];
+export function newUTXOTransaction(
+  from: string,
+  to: string,
+  amount: number,
+  bc: Blockchain
+): Transaction {
+  let inputs = [] as TxInput[];
+  let outputs = [] as TxOutput[];
+  let { totalAccumulate, unspentOutputs } = bc.findSpendableOutputs(
+    from,
+    amount
+  );
 
-//   let acc = 0;
-//   let validOutputs: { [txid: string]: number } = {};
-//   let txs = bc.blocks.flatMap((b) => b.transactions);
+  if (totalAccumulate < amount) {
+    throw new Error(`ERROR: Not enough funds`);
+  }
 
-//   for (let tx of txs) {
-//     if (tx.vins[0].canUnlockOutputWith(from)) {
-//       acc += tx.vouts[0].value;
-//       validOutputs[tx.txid] = tx.vouts[0].value;
-//       inputs.push(tx.vins[0]);
+  for (const txid of Object.keys(unspentOutputs)) {
+    let vouts = unspentOutputs[txid];
+    for (const vout of vouts) {
+      let input = new TxInput(txid, vout, from);
+      inputs.push(input);
+    }
+  }
 
-//       if (acc >= amount) {
-//         break;
-//       }
-//     }
-//   }
-
-//   let leftover = acc - amount;
-//   outputs.push(new TxOutput(amount, to));
-//   if (leftover > 0) {
-//     outputs.push(new TxOutput(leftover, from));
-//   }
-
-//   let tx = {
-//     txid: "",
-//     vins: inputs,
-//     vouts: outputs,
-//   };
-
-//   return tx;
-// }
+  outputs.push(new TxOutput(amount, to));
+  if (totalAccumulate > amount) {
+    outputs.push(new TxOutput(totalAccumulate - amount, from));
+  }
+  return {
+    txid: sha256(Buffer.from(JSON.stringify({ inputs, outputs }))),
+    txVins: inputs,
+    txVouts: outputs,
+  };
+}
