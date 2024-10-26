@@ -47,13 +47,23 @@ class Blockchain {
     };
   }
 
-  findUnspentTransactions(address: string): UnspentTransaction[] {
+  findUnspentTransactions(
+    address: string,
+    mempoolTxs: Transaction[]
+  ): UnspentTransaction[] {
     let spentTxos = {} as { [key: string]: boolean };
     let unspentTxs: UnspentTransaction[] = [];
-
     let currentHash = this.tipHash;
+
     while (true) {
       let block = this.blocks[this.blocksDb[currentHash]];
+      for (const tx of mempoolTxs) {
+        for (const txVin of tx.txVins) {
+          spentTxos[`${tx.txid}-${txVin.vout}`] = true;
+        }
+      }
+      console.log({ spentTxos });
+
       for (const tx of block.transactions) {
         // Loop through vins to detect spent txos
         if (!isCoinbase(tx)) {
@@ -88,9 +98,9 @@ class Blockchain {
     return unspentTxs;
   }
 
-  findUTXO(address: string): TxOutput[] {
+  findUTXO(address: string, mempoolTxs: Transaction[]): TxOutput[] {
     let utxos = [] as TxOutput[];
-    let unspentTxs = this.findUnspentTransactions(address);
+    let unspentTxs = this.findUnspentTransactions(address, mempoolTxs);
     for (const unspentTx of unspentTxs) {
       let transaction = unspentTx.tx;
       let txVouts = transaction.txVouts;
@@ -102,10 +112,11 @@ class Blockchain {
 
   findSpendableOutputs(
     address: string,
-    amount: number
+    amount: number,
+    mempoolTxs: Transaction[]
   ): { totalAccumulate: number; unspentOutputs: { [key: string]: number[] } } {
     let unspentOutputs: { [key: string]: number[] } = {};
-    let unspentTxs = this.findUnspentTransactions(address);
+    let unspentTxs = this.findUnspentTransactions(address, mempoolTxs);
     let totalAccumulate = 0;
     for (const unspentTx of unspentTxs) {
       let transaction = unspentTx.tx;

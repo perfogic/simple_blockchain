@@ -57,13 +57,15 @@ export function newUTXOTransaction(
   from: string,
   to: string,
   amount: number,
+  mempool: Transaction[],
   bc: Blockchain
 ): Transaction {
   let inputs = [] as TxInput[];
   let outputs = [] as TxOutput[];
   let { totalAccumulate, unspentOutputs } = bc.findSpendableOutputs(
     from,
-    amount
+    amount,
+    mempool
   );
 
   if (totalAccumulate < amount) {
