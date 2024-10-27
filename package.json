@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ethersproject/crypto": "^6.0.0-beta.1",
+    "bitcoinjs-lib": "^7.0.0-rc.0",
     "class-transformer": "^0.5.1",
     "dotenv": "^16.0.3",
     "ts-node": "^10.7.0",
