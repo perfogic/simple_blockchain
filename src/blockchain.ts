@@ -6,13 +6,10 @@ import {
   Transaction,
   TxOutput,
 } from "./transaction";
+import Mempool from "./mempool";
 
 const genesisCoinbaseData =
   "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
-
-interface KeyValueDB {
-  [key: string]: string;
-}
 
 interface UnspentTransaction {
   tx: Transaction;
@@ -23,6 +20,7 @@ class Blockchain {
   public blocks: Block[];
   public blocksDb: { [key: string]: number };
   public tipHash: string;
+  public mempool: Mempool;
 
   constructor(validatorAddress: string) {
     const genesisBlock = Block.createGenesisBlock(
@@ -33,11 +31,17 @@ class Blockchain {
       [genesisBlock.hash]: 0,
     };
     this.tipHash = genesisBlock.hash;
+    this.mempool = new Mempool();
   }
 
-  mineBlock(transactions: Transaction[]): void {
+  broadcastTx(tx: Transaction): void {
+    this.mempool.addTransaction(tx);
+  }
+
+  mineBlock(): void {
+    let txs = this.mempool.getRawMempools();
     const prevBlock = this.blocks[this.blocks.length - 1];
-    const newBlock = new Block(transactions, prevBlock.hash);
+    const newBlock = new Block(txs, prevBlock.hash);
     let currentIndex = this.blocks.length;
     this.blocks.push(newBlock);
     this.tipHash = newBlock.hash;
@@ -45,27 +49,26 @@ class Blockchain {
       ...this.blocksDb,
       [newBlock.hash]: currentIndex,
     };
+    this.mempool.clear();
   }
 
-  findUnspentTransactions(
-    address: string,
-    mempoolTxs: Transaction[]
-  ): UnspentTransaction[] {
+  findUnspentTransactions(address: string): UnspentTransaction[] {
     let spentTxos = {} as { [key: string]: boolean };
     let unspentTxs: UnspentTransaction[] = [];
+    let mempoolTxs = this.mempool.getRawMempools();
     let currentHash = this.tipHash;
 
     while (true) {
       let block = this.blocks[this.blocksDb[currentHash]];
+      // Index mempool tx
       for (const tx of mempoolTxs) {
         for (const txVin of tx.txVins) {
-          spentTxos[`${tx.txid}-${txVin.vout}`] = true;
+          spentTxos[`${txVin.txid}-${txVin.vout}`] = true;
         }
       }
-      console.log({ spentTxos });
 
-      for (const tx of block.transactions) {
-        // Loop through vins to detect spent txos
+      for (const tx of [...block.transactions, ...mempoolTxs]) {
+        // Detect used transactions from txVins
         if (!isCoinbase(tx)) {
           for (const txVin of tx.txVins) {
             if (txVin.canUnlockOutputWith(address)) {
@@ -75,8 +78,10 @@ class Blockchain {
             }
           }
         }
+      }
 
-        // Let's find unspent txos
+      for (const tx of [...block.transactions, ...mempoolTxs]) {
+        // Find out unspent transactions from txVouts
         let txVouts = tx.txVouts;
         for (let i = 0; i < txVouts.length; i++) {
           if (spentTxos[`${tx.txid}-${i}`] === undefined) {
@@ -98,9 +103,9 @@ class Blockchain {
     return unspentTxs;
   }
 
-  findUTXO(address: string, mempoolTxs: Transaction[]): TxOutput[] {
+  findUTXO(address: string): TxOutput[] {
     let utxos = [] as TxOutput[];
-    let unspentTxs = this.findUnspentTransactions(address, mempoolTxs);
+    let unspentTxs = this.findUnspentTransactions(address);
     for (const unspentTx of unspentTxs) {
       let transaction = unspentTx.tx;
       let txVouts = transaction.txVouts;
@@ -112,11 +117,10 @@ class Blockchain {
 
   findSpendableOutputs(
     address: string,
-    amount: number,
-    mempoolTxs: Transaction[]
+    amount: number
   ): { totalAccumulate: number; unspentOutputs: { [key: string]: number[] } } {
     let unspentOutputs: { [key: string]: number[] } = {};
-    let unspentTxs = this.findUnspentTransactions(address, mempoolTxs);
+    let unspentTxs = this.findUnspentTransactions(address);
     let totalAccumulate = 0;
     for (const unspentTx of unspentTxs) {
       let transaction = unspentTx.tx;

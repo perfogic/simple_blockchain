@@ -1,13 +1,9 @@
 import Blockchain from "./blockchain";
-import { newUTXOTransaction, Transaction } from "./transaction";
+import { newUTXOTransaction } from "./transaction";
 
-const getBalance = (
-  address: string,
-  mempoolTxs: Transaction[],
-  bc: Blockchain
-) => {
+const getBalance = (address: string, bc: Blockchain) => {
   let balance = 0;
-  let utxos = bc.findUTXO(address, mempoolTxs);
+  let utxos = bc.findUTXO(address);
   for (const utxo of utxos) {
     balance += utxo.value;
   }
@@ -16,26 +12,17 @@ const getBalance = (
 
 const main = async () => {
   const blockchain = new Blockchain("Validator");
-  let mempoolTxs: Transaction[] = [];
-  let tx1 = newUTXOTransaction(
-    "Validator",
-    "Alice",
-    10,
-    mempoolTxs,
-    blockchain
-  );
-  mempoolTxs.push(tx1);
-  let tx2 = newUTXOTransaction("Validator", "Bob", 5, mempoolTxs, blockchain);
-  mempoolTxs.push(tx2);
-  blockchain.mineBlock(mempoolTxs);
-  mempoolTxs = [];
-  blockchain.mineBlock(mempoolTxs);
+  let tx1 = newUTXOTransaction("Validator", "Alice", 10, blockchain);
+  blockchain.broadcastTx(tx1);
+  let tx2 = newUTXOTransaction("Validator", "Bob", 5, blockchain);
+  blockchain.broadcastTx(tx2);
+  blockchain.mineBlock();
   blockchain.viewExplorer();
-  let aliceBalance = getBalance("Alice", mempoolTxs, blockchain);
+  let aliceBalance = getBalance("Alice", blockchain);
   console.log("Alice's balance:", aliceBalance);
-  let bobBalance = getBalance("Bob", mempoolTxs, blockchain);
+  let bobBalance = getBalance("Bob", blockchain);
   console.log("Bob's balance:", bobBalance);
-  const validatorBalance = getBalance("Validator", mempoolTxs, blockchain);
+  const validatorBalance = getBalance("Validator", blockchain);
   console.log("Validator's balance:", validatorBalance);
 };
 
