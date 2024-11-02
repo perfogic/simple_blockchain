@@ -22,33 +22,42 @@ const main = async () => {
 
   // Interact with blockchain
   const blockchain = new Blockchain(validatorWallet.getAddress());
-  let tx1 = newUTXOTransaction(
+  let tx = newUTXOTransaction(
     validatorWallet.getAddress(),
     aliceWallet.getAddress(),
     10,
     blockchain,
     wallets
   );
-  blockchain.signTransaction(tx1, validatorWallet.privateKey);
-  blockchain.mineBlock([tx1]);
-  let tx2 = newUTXOTransaction(
+  blockchain.signTransaction(tx, validatorWallet.privateKey);
+  blockchain.mineBlock([tx]);
+  tx = newUTXOTransaction(
     validatorWallet.getAddress(),
     aliceWallet.getAddress(),
     5,
     blockchain,
     wallets
   );
-  blockchain.signTransaction(tx2, validatorWallet.privateKey);
-  blockchain.mineBlock([tx2]);
-  let tx3 = newUTXOTransaction(
+  blockchain.signTransaction(tx, validatorWallet.privateKey);
+  blockchain.mineBlock([tx]);
+  tx = newUTXOTransaction(
     aliceWallet.getAddress(),
     bobWallet.getAddress(),
     15,
     blockchain,
     wallets
   );
-  blockchain.signTransaction(tx3, aliceWallet.privateKey);
-  blockchain.mineBlock([tx3]);
+  blockchain.signTransaction(tx, aliceWallet.privateKey);
+  blockchain.mineBlock([tx]);
+  tx = newUTXOTransaction(
+    bobWallet.getAddress(),
+    validatorWallet.getAddress(),
+    5,
+    blockchain,
+    wallets
+  );
+  blockchain.signTransaction(tx, bobWallet.privateKey);
+  blockchain.mineBlock([tx]);
 
   console.log(
     "Balance of Alice:",
