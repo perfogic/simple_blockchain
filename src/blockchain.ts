@@ -28,7 +28,6 @@ class Blockchain {
       [genesisBlock.hash]: 0,
     };
     this.tipHash = genesisBlock.hash;
-    this.viewExplorer();
   }
 
   mineBlock(transactions: Transaction[]): void {
@@ -46,7 +45,6 @@ class Blockchain {
       ...this.blocksDb,
       [newBlock.hash]: currentIndex,
     };
-    this.viewExplorer();
   }
 
   findUnspentTransactions(pubkeyHash: Buffer): UnspentTransaction[] {

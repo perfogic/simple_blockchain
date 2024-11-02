@@ -1,4 +1,4 @@
-import { sha256 } from "@ethersproject/crypto";
+import { lock, sha256 } from "@ethersproject/crypto";
 import Blockchain from "./blockchain";
 import { CHECK_SUM_LEN } from "./wallet";
 import { getBytes, hashPubKey } from "./utils";
@@ -26,7 +26,7 @@ export class TxInput {
 
   usesKey(pubkeyHash: Buffer): boolean {
     let lockingHash = hashPubKey(this.pubkey);
-    return lockingHash === pubkeyHash;
+    return Buffer.compare(lockingHash, pubkeyHash) === 0;
   }
 }
 
@@ -57,7 +57,7 @@ export class Transaction {
   constructor(txVins: TxInput[], txVouts: TxOutput[]) {
     this.txVins = txVins;
     this.txVouts = txVouts;
-    this.txid = this.hash();
+    this.txid = this.calculateTxid();
   }
 
   isCoinbase() {
@@ -114,7 +114,7 @@ export class Transaction {
     return true;
   }
 
-  hash(): string {
+  calculateTxid(): string {
     return sha256(
       Buffer.from(
         JSON.stringify({
