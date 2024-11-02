@@ -10,9 +10,13 @@
   },
   "dependencies": {
     "@ethersproject/crypto": "^6.0.0-beta.1",
+    "@ethersproject/logger": "^5.7.0",
+    "bip32": "^5.0.0-rc.0",
     "bitcoinjs-lib": "^7.0.0-rc.0",
+    "bs58": "^6.0.0",
     "class-transformer": "^0.5.1",
     "dotenv": "^16.0.3",
+    "tiny-secp256k1": "^2.2.3",
     "ts-node": "^10.7.0",
     "typescript": ">=2.7"
   },
