@@ -1,11 +1,6 @@
 import { instanceToPlain } from "class-transformer";
 import Block from "./block";
-import {
-  isCoinbase,
-  newCoinbaseTx,
-  Transaction,
-  TxOutput,
-} from "./transaction";
+import { newCoinbaseTx, Transaction, TxOutput } from "./transaction";
 
 const genesisCoinbaseData =
   "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
@@ -26,17 +21,23 @@ class Blockchain {
 
   constructor(validatorAddress: string) {
     const genesisBlock = Block.createGenesisBlock(
-      newCoinbaseTx(validatorAddress, genesisCoinbaseData)
+      newCoinbaseTx(validatorAddress, Buffer.from(genesisCoinbaseData))
     );
     this.blocks = [genesisBlock];
     this.blocksDb = {
       [genesisBlock.hash]: 0,
     };
     this.tipHash = genesisBlock.hash;
+    this.viewExplorer();
   }
 
   mineBlock(transactions: Transaction[]): void {
     const prevBlock = this.blocks[this.blocks.length - 1];
+    for (const tx of transactions) {
+      if (!this.verifyTransaction(tx)) {
+        throw new Error("ERROR: Invalid transaction");
+      }
+    }
     const newBlock = new Block(transactions, prevBlock.hash);
     let currentIndex = this.blocks.length;
     this.blocks.push(newBlock);
@@ -45,9 +46,10 @@ class Blockchain {
       ...this.blocksDb,
       [newBlock.hash]: currentIndex,
     };
+    this.viewExplorer();
   }
 
-  findUnspentTransactions(address: string): UnspentTransaction[] {
+  findUnspentTransactions(pubkeyHash: Buffer): UnspentTransaction[] {
     let spentTxos = {} as { [key: string]: boolean };
     let unspentTxs: UnspentTransaction[] = [];
 
@@ -56,9 +58,9 @@ class Blockchain {
       let block = this.blocks[this.blocksDb[currentHash]];
       for (const tx of block.transactions) {
         // Loop through vins to detect spent txos
-        if (!isCoinbase(tx)) {
+        if (!tx.isCoinbase()) {
           for (const txVin of tx.txVins) {
-            if (txVin.canUnlockOutputWith(address)) {
+            if (txVin.usesKey(pubkeyHash)) {
               const inTxID = txVin.txid;
               const vout = txVin.vout;
               spentTxos[`${inTxID}-${vout}`] = true;
@@ -70,7 +72,7 @@ class Blockchain {
         let txVouts = tx.txVouts;
         for (let i = 0; i < txVouts.length; i++) {
           if (spentTxos[`${tx.txid}-${i}`] === undefined) {
-            if (txVouts[i].canBeUnlockedWith(address)) {
+            if (txVouts[i].isLockedWithKey(pubkeyHash)) {
               unspentTxs.push({
                 tx,
                 vout: i,
@@ -88,9 +90,9 @@ class Blockchain {
     return unspentTxs;
   }
 
-  findUTXO(address: string): TxOutput[] {
+  findUTXO(pubkeyHash: Buffer): TxOutput[] {
     let utxos = [] as TxOutput[];
-    let unspentTxs = this.findUnspentTransactions(address);
+    let unspentTxs = this.findUnspentTransactions(pubkeyHash);
     for (const unspentTx of unspentTxs) {
       let transaction = unspentTx.tx;
       let txVouts = transaction.txVouts;
@@ -101,11 +103,11 @@ class Blockchain {
   }
 
   findSpendableOutputs(
-    address: string,
+    pubkeyHash: Buffer,
     amount: number
   ): { totalAccumulate: number; unspentOutputs: { [key: string]: number[] } } {
     let unspentOutputs: { [key: string]: number[] } = {};
-    let unspentTxs = this.findUnspentTransactions(address);
+    let unspentTxs = this.findUnspentTransactions(pubkeyHash);
     let totalAccumulate = 0;
     for (const unspentTx of unspentTxs) {
       let transaction = unspentTx.tx;
@@ -134,6 +136,39 @@ class Blockchain {
       console.dir(instanceToPlain(block), { depth: null });
       i++;
     }
+  }
+
+  findTransaction(txid: string): Transaction {
+    for (const block of this.blocks) {
+      for (const tx of block.transactions) {
+        if (tx.txid === txid) {
+          return tx;
+        }
+      }
+    }
+    throw new Error("Transaction not found");
+  }
+
+  signTransaction(tx: Transaction, privKey: Buffer) {
+    let prevTxs: { [key: string]: Transaction } = {};
+
+    for (const vin of tx.txVins) {
+      let prevTx = this.findTransaction(vin.txid);
+      prevTxs[vin.txid] = prevTx;
+    }
+
+    tx.sign(privKey, prevTxs);
+  }
+
+  verifyTransaction(tx: Transaction): boolean {
+    let prevTxs: { [key: string]: Transaction } = {};
+
+    for (const vin of tx.txVins) {
+      let prevTx = this.findTransaction(vin.txid);
+      prevTxs[vin.txid] = prevTx;
+    }
+
+    return tx.verify(prevTxs);
   }
 }
 
