@@ -12,8 +12,8 @@ class Block {
     this.timestamp = Math.floor(new Date().getTime() / 1000);
     this.data = data;
     this.prevBlockHash = prevBlockHash;
-    let pow = new ProofOfWork(this);
-    const { hash, nonce } = pow.run();
+    let pow = new ProofOfWork();
+    const { hash, nonce } = pow.run({ block: this });
     this.hash = hash;
     this.nonce = nonce;
   }
