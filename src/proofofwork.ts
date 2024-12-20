@@ -1,13 +1,17 @@
 import { sha256 } from "@ethersproject/crypto";
 import Block from "./block";
 
-const targetBits = 15n;
-const maxNonce = BigInt("9223372036854775807");
-
 class ProofOfWork {
   target: bigint;
+  targetBits: bigint;
+  maxNonce: bigint;
 
-  constructor() {
+  constructor(
+    targetBits: bigint = 15n,
+    maxNonce: bigint = 9223372036854775807n
+  ) {
+    this.targetBits = targetBits;
+    this.maxNonce = maxNonce;
     this.target = 1n << (256n - targetBits); // 1 << (256 - targetBits)
   }
 
@@ -17,7 +21,7 @@ class ProofOfWork {
       block.prevBlockHash,
       block.data,
       block.timestamp.toString(16),
-      targetBits.toString(16),
+      this.targetBits.toString(16),
       nonce.toString(16),
     ];
 
@@ -36,7 +40,7 @@ class ProofOfWork {
     console.info(
       `Mining the block containing "${Buffer.from(block.data).toString()}"`
     );
-    while (nonce < maxNonce) {
+    while (nonce < this.maxNonce) {
       const data = this.prepareData(block, nonce);
       let hash = sha256(data);
       process.stdout.write(`\rRetry with hash: ${hash}`);
